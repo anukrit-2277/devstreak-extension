@@ -1,26 +1,53 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+import axios from 'axios';
 export function activate(context: vscode.ExtensionContext) {
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "devstreak-extension" is now active!');
+	console.log('Extension is now active!');
+	let disposable = vscode.commands.registerCommand('devstreak.sendSnippet', async () => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      vscode.window.showErrorMessage('Open a file and select code to send!');
+      return;
+    }
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('devstreak-extension.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from DevStreak!');
-	});
+    // Get selected text or whole file if nothing selected
+    const snippet = editor.document.getText(editor.selection).trim() || editor.document.getText().trim();
+    if (!snippet) {
+      vscode.window.showWarningMessage('No code found to send.');
+      return;
+    }
 
-	context.subscriptions.push(disposable);
+    vscode.window.showInformationMessage('Sending code snippet to DevStreak Backend API...');
+
+    try {
+      const response = await axios.post('http://localhost:5011/', {
+        code: snippet
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          // 'Authorization': 'API_KEY', // 
+        }
+      });
+
+      if (response.data && response.data.summary) {
+        vscode.window.showInformationMessage('Summary received! Opening preview...');
+        // Open new tab with summary
+        const doc = await vscode.workspace.openTextDocument({
+          content: response.data.summary,
+          language: 'markdown'  // or plaintext
+        });
+        vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+      } else {
+        vscode.window.showErrorMessage('Backend did not return a summary.');
+      }
+    } catch (error: any) {
+      vscode.window.showErrorMessage(`Error sending snippet: ${error.message}`);
+    }
+  });
+
+  context.subscriptions.push(disposable);
+
+	
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() {}
